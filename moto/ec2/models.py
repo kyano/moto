@@ -5,9 +5,11 @@ import copy
 import itertools
 import re
 import six
+import calendar
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
+from random import Random
 from boto.ec2.instance import Instance as BotoInstance, Reservation
 from boto.ec2.blockdevicemapping import BlockDeviceMapping, BlockDeviceType
 from boto.ec2.spotinstancerequest import SpotInstanceRequest as BotoSpotRequest
@@ -2560,6 +2562,64 @@ class SpotRequestBackend(object):
             requests.append(self.spot_instance_requests.pop(request_id))
         return requests
 
+    @Model.prop('SpotInstanceRequest')
+    def describe_spot_price_history(self, instance_types, max_results, start_time, end_time):
+        requests = []
+
+        instance_types = ["c3.xlarge", "c3.2xlarge", "c3.3xlarge", "c3.4xlarge"] if len(instance_types) == 0 else instance_types
+        max_results = 4976 if max_results is None else int(max_results)
+        start_time = datetime.utcnow() - timedelta(seconds=3600)
+        end_time = start_time + timedelta(seconds=3660)
+        zones = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1e"]
+
+        _last_timestamp = start_time
+        # timestamp = 0
+
+        while True:
+            _avail_instance_types = []
+            for _instance_type in instance_types:
+                run_or_not = Random().randint(0, 1) == 1
+                if run_or_not:
+                    _avail_instance_types.append(_instance_type)
+
+            _avail_zones = []
+            for _zone in zones:
+                run_or_not = Random().randint(0, 1) == 1
+                if run_or_not:
+                    _avail_zones.append(_zone)
+
+            timestamp = _last_timestamp + timedelta(seconds=60)
+            if timestamp > end_time:
+                break
+
+            break_now = False
+            for _it in _avail_instance_types:
+                if break_now:
+                    break
+                for _az in _avail_zones:
+                    time_variant = Random().randint(-30, 70)
+                    if timestamp + timedelta(seconds=time_variant) < start_time:
+                        continue
+                    if timestamp + timedelta(seconds=time_variant) > end_time:
+                        break_now = True
+                        break
+                    item = {
+                        "Timestamp": (timestamp + timedelta(time_variant)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                        "ProductDescription": "Linux/UNIX",
+                        "InstanceType": _it,
+                        "SpotPrice": "%.6f" % round(Random().random() % 0.75 + 0.15, 4),
+                        "AvailabilityZone": _az}
+                    requests.append(item)
+                    if len(requests) == max_results:
+                        break_now = True
+                        break
+
+            if break_now:
+                break
+
+            _last_timestamp = timestamp
+
+        return requests
 
 class ElasticAddress(object):
     def __init__(self, domain):
