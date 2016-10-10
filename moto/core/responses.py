@@ -172,6 +172,12 @@ class BaseResponse(_TemplateEnvironmentMixin):
         if val is not None:
             return int(val)
 
+    def _get_datetime_param(self, param_name):
+        val = self._get_param(param_name)
+        if val is not None and isinstance(str(val), str):
+            date_format = "%Y-%m-%dT%H:%M:%S.%fZ" if str(val).find(".") > 0 else "%Y-%m-%dT%H:%M:%SZ"
+            return datetime.datetime.strptime(str(val), date_format)
+
     def _get_bool_param(self, param_name):
         val = self._get_param(param_name)
         if val is not None:

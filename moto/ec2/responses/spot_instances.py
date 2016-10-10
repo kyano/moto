@@ -27,7 +27,19 @@ class SpotInstances(BaseResponse):
         return template.render(requests=requests)
 
     def describe_spot_price_history(self):
-        raise NotImplementedError('SpotInstances.describe_spot_price_history is not yet implemented')
+        instance_types = self._get_multi_param('InstanceType')
+        max_results = self._get_param('MaxResults')
+        start_time = self._get_datetime_param('StartTime')
+        end_time = self._get_datetime_param('EndTime')
+
+        requests = self.ec2_backend.describe_spot_price_history(
+            instance_types=instance_types,
+            max_results=max_results,
+            start_time=start_time,
+            end_time=end_time
+        )
+        template = self.response_template(DESCRIBE_SPOT_PRICE_HISTORY_TEMPLATE)
+        return template.render(requests=requests)
 
     def request_spot_instances(self):
         price = self._get_param('SpotPrice')
@@ -217,3 +229,19 @@ CANCEL_SPOT_INSTANCES_TEMPLATE = """<CancelSpotInstanceRequestsResponse xmlns="h
     {% endfor %}
   </spotInstanceRequestSet>
 </CancelSpotInstanceRequestsResponse>"""
+
+DESCRIBE_SPOT_PRICE_HISTORY_TEMPLATE = """<DescribeSpotPriceHistoryResponse xmlns="http://ec2.amazonaws.com/doc/2015-10-01/">
+  <requestId>59dbff89-35bd-4eac-99ed-be587EXAMPLE</requestId>
+  <spotPriceHistorySet>
+    {% for request in requests %}
+    <item>
+      <instanceType>{{ request['InstanceType'] }}</instanceType>
+      <productDescription>{{ request['ProductDescription'] }}</productDescription>
+      <spotPrice>{{ request['SpotPrice'] }}</spotPrice>
+      <timestamp>{{ request['Timestamp'] }}</timestamp>
+      <availabilityZone>{{ request['AvailabilityZone'] }}</availabilityZone>
+    </item>
+    {% endfor %}
+  </spotPriceHistorySet>
+  <nextToken/>
+</DescribeSpotPriceHistoryResponse>"""
