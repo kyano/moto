@@ -2622,6 +2622,7 @@ class SpotRequestBackend(object):
 
             _last_timestamp = timestamp
 
+        requests = sorted(requests, lambda x,y: cmp(x["Timestamp"], y["Timestamp"]))
         return requests
 
 class ElasticAddress(object):
