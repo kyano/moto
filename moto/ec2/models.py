@@ -2572,8 +2572,8 @@ class SpotRequestBackend(object):
 
         instance_types = ["c3.xlarge", "c3.2xlarge", "c3.3xlarge", "c3.4xlarge"] if len(instance_types) == 0 else instance_types
         max_results = 4976 if max_results is None else int(max_results)
-        start_time = datetime.utcnow() - timedelta(seconds=3600)
-        end_time = start_time + timedelta(seconds=3660)
+        start_time = datetime.utcnow() - timedelta(seconds=3600) if start_time is None else start_time
+        end_time = start_time + timedelta(seconds=3660) if end_time is None else end_time
         zones = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1e"]
 
         _last_timestamp = start_time
@@ -2607,7 +2607,7 @@ class SpotRequestBackend(object):
                         break_now = True
                         break
                     item = {
-                        "Timestamp": (timestamp + timedelta(time_variant)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                        "Timestamp": (timestamp + timedelta(seconds=time_variant)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
                         "ProductDescription": "Linux/UNIX",
                         "InstanceType": _it,
                         "SpotPrice": "%.6f" % round(Random().random() % 0.75 + 0.15, 4),
