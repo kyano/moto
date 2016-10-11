@@ -2573,7 +2573,6 @@ class SpotRequestBackend(object):
         zones = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1e"]
 
         _last_timestamp = start_time
-        # timestamp = 0
 
         while True:
             _avail_instance_types = []
