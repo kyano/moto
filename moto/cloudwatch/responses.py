@@ -93,6 +93,32 @@ class CloudWatchResponse(BaseResponse):
         template = self.response_template(LIST_METRICS_TEMPLATE)
         return template.render(metrics=metrics)
 
+    def get_metric_statistics(self):
+        namespace = self._get_param('Namespace')
+        metric_name = self._get_param('MetricName')
+        starttime = self._get_param('StartTime')
+        endtime = self._get_param('EndTime')
+        period = self._get_param('Period')
+        unit = self._get_param('Unit')
+        statistics = self._get_multi_param('Statistics.member')
+        dimensions = self._get_multi_param('Dimensions')
+
+        print "namespace:", namespace
+        print "metric_name:", metric_name
+        print "starttime:", starttime
+        print "endtime:", endtime
+        print "period:", period
+        print "unit:", unit
+        print "statistics:", statistics
+        print "dimensions:", dimensions
+
+        cloudwatch_backend = cloudwatch_backends[self.region]
+        # metrics = cloudwatch_backend.get_metric_statistics()
+        metrics = []
+
+        # raise NotImplementedError('CloudWatchResponse.get_metric_statistics is not yet implemented')
+        template = self.response_template(GET_METRIC_STATISTICS_TEMPLATE)
+        return template.render(metrics=metrics, label=metric_name)
 
 PUT_METRIC_ALARM_TEMPLATE = """<PutMetricAlarmResponse xmlns="http://monitoring.amazonaws.com/doc/2010-08-01/">
    <ResponseMetadata>
@@ -192,3 +218,23 @@ LIST_METRICS_TEMPLATE = """<ListMetricsResponse xmlns="http://monitoring.amazona
         </NextToken>
     </ListMetricsResult>
 </ListMetricsResponse>"""
+
+GET_METRIC_STATISTICS_TEMPLATE = """<GetMetricStatisticsResponse>
+  <GetMetricStatisticsResult>
+    <Datapoints>
+      {% for metric in metrics %}
+      <member>
+        <Timestamp>{{ metric.timestamp }}</Timestamp>
+        <Unit>{{ metric.unit }}</Unit>
+        {% for statistic in metric.statistics %}
+        <{{ statistic.type }}>{{ statistic.value }}</{{ statistic.type }}>
+        {% endfor %}
+      </member>
+      {% endfor %}
+    </Datapoints>
+    <Label>{{ label }}</Label>
+  </GetMetricStatisticsResult>
+  <ResponseMetadata>
+    <RequestId>a9f8f3a3-e40f-11dd-af0f-cf11f65ec49d</RequestId>
+  </ResponseMetadata>
+</GetMetricStatisticsResponse>"""
