@@ -6,6 +6,6 @@ ENV PYTHONUNBUFFERED 1
 WORKDIR /moto/
 RUN pip install .[server]
 
-CMD ["moto_server"]
+CMD ["./init.sh"]
 
 EXPOSE 5000
