@@ -12,4 +12,4 @@ $CURL -s -x $MOTO_URL -X "POST" -d "Name=MyTopic&Action=CreateTopic" http://sns.
 $CURL -s -x $MOTO_URL -X "POST" -d "Name=YourTopic&Action=CreateTopic" http://sns.us-east-1.amazonaws.com/ > /dev/null 2>&1
 $CURL -s -x $MOTO_URL -X "POST" -d "Name=OurTopic&Action=CreateTopic" http://sns.us-east-1.amazonaws.com/ > /dev/null 2>&1
 
-sleep inf
+tail -f nohup.out

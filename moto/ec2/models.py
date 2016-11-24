@@ -2589,7 +2589,6 @@ class SpotRequestBackend(object):
         max_results = 4976 if max_results is None else int(max_results)
         start_time = datetime.utcnow() - timedelta(seconds=3600) if start_time is None else start_time
         end_time = start_time + timedelta(seconds=3660) if end_time is None else end_time
-        zones = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1e"]
 
         _last_timestamp = start_time
 
@@ -2601,10 +2600,10 @@ class SpotRequestBackend(object):
                     _avail_instance_types.append(_instance_type)
 
             _avail_zones = []
-            for _zone in zones:
+            for _zone in self.zones:
                 run_or_not = Random().randint(0, 1) == 1
                 if run_or_not:
-                    _avail_zones.append(_zone)
+                    _avail_zones.append(_zone.name)
 
             timestamp = _last_timestamp + timedelta(seconds=60)
             if timestamp > end_time:
