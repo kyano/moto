@@ -103,20 +103,13 @@ class CloudWatchResponse(BaseResponse):
         statistics = self._get_multi_param('Statistics.member')
         dimensions = self._get_multi_param('Dimensions')
 
-        print "namespace:", namespace
-        print "metric_name:", metric_name
-        print "starttime:", starttime
-        print "endtime:", endtime
         print "period:", period
         print "unit:", unit
-        print "statistics:", statistics
         print "dimensions:", dimensions
 
         cloudwatch_backend = cloudwatch_backends[self.region]
-        # metrics = cloudwatch_backend.get_metric_statistics()
-        metrics = []
+        metrics = cloudwatch_backend.get_metric_statistics(namespace, metric_name, starttime, endtime, statistics)
 
-        # raise NotImplementedError('CloudWatchResponse.get_metric_statistics is not yet implemented')
         template = self.response_template(GET_METRIC_STATISTICS_TEMPLATE)
         return template.render(metrics=metrics, label=metric_name)
 

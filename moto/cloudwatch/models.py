@@ -1,6 +1,7 @@
 from moto.core import BaseBackend
 import boto.ec2.cloudwatch
 import datetime
+import random
 
 
 class Dimension(object):
@@ -104,6 +105,23 @@ class CloudWatchBackend(BaseBackend):
     def get_all_metrics(self):
         return self.metric_data
 
+    def get_metric_statistics(self, namespace, metric_name, starttime, endtime, statistics):
+        print "namespace:", namespace
+        print "metric_name:", metric_name
+        print "starttime:", starttime
+        print "endtime:", endtime
+        print "statistics:", statistics
+
+        if namespace == "QueryProxyV11" and metric_name == "connections":
+            random.seed()
+            return [{
+                "timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                # "unit": ,
+                "statistics": [{
+                    "type": "Sum",
+                    "value": random.randint(1000000, 12000000)}]}]
+
+        return []
 
 cloudwatch_backends = {}
 for region in boto.ec2.cloudwatch.regions():
