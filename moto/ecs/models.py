@@ -1,6 +1,6 @@
 from __future__ import unicode_literals
 import uuid
-from random import randint
+from random import randint, random
 
 from moto.core import BaseBackend
 from moto.ec2 import ec2_backends
@@ -48,13 +48,39 @@ class Cluster(BaseObject):
         del response_object['arn'], response_object['name']
         return response_object
 
+    @classmethod
+    def create_from_cloudformation_json(cls, resource_name, cloudformation_json, region_name):
+        properties = cloudformation_json['Properties']
+
+        ecs_backend = ecs_backends[region_name]
+        return ecs_backend.create_cluster(
+            # ClusterName is optional in CloudFormation, thus create a random name if necessary
+            cluster_name=properties.get('ClusterName', 'ecscluster{0}'.format(int(random() * 10 ** 6))),
+        )
+    @classmethod
+    def update_from_cloudformation_json(cls, original_resource, new_resource_name, cloudformation_json, region_name):
+        properties = cloudformation_json['Properties']
+
+        if original_resource.name != properties['ClusterName']:
+            ecs_backend = ecs_backends[region_name]
+            ecs_backend.delete_cluster(original_resource.arn)
+            return ecs_backend.create_cluster(
+                # ClusterName is optional in CloudFormation, thus create a random name if necessary
+                cluster_name=properties.get('ClusterName', 'ecscluster{0}'.format(int(random() * 10 ** 6))),
+            )
+        else:
+            # no-op when nothing changed between old and new resources
+            return original_resource
+
 
 class TaskDefinition(BaseObject):
     def __init__(self, family, revision, container_definitions, volumes=None):
         self.family = family
         self.arn = 'arn:aws:ecs:us-east-1:012345678910:task-definition/{0}:{1}'.format(family, revision)
         self.container_definitions = container_definitions
-        if volumes is not None:
+        if volumes is None:
+            self.volumes = []
+        else:
             self.volumes = volumes
 
     @property
@@ -64,6 +90,37 @@ class TaskDefinition(BaseObject):
         del response_object['arn']
         return response_object
 
+    @classmethod
+    def create_from_cloudformation_json(cls, resource_name, cloudformation_json, region_name):
+        properties = cloudformation_json['Properties']
+
+        family = properties.get('Family', 'task-definition-{0}'.format(int(random() * 10 ** 6)))
+        container_definitions = properties['ContainerDefinitions']
+        volumes = properties['Volumes']
+
+        ecs_backend = ecs_backends[region_name]
+        return ecs_backend.register_task_definition(
+            family=family, container_definitions=container_definitions, volumes=volumes)
+
+    @classmethod
+    def update_from_cloudformation_json(cls, original_resource, new_resource_name, cloudformation_json, region_name):
+        properties = cloudformation_json['Properties']
+
+        family = properties.get('Family', 'task-definition-{0}'.format(int(random() * 10 ** 6)))
+        container_definitions = properties['ContainerDefinitions']
+        volumes = properties['Volumes']
+        if (original_resource.family != family or
+            original_resource.container_definitions != container_definitions or
+            original_resource.volumes != volumes
+            # currently TaskRoleArn isn't stored at TaskDefinition instances
+        ):
+            ecs_backend = ecs_backends[region_name]
+            ecs_backend.deregister_task_definition(original_resource.arn)
+            return ecs_backend.register_task_definition(
+                family=family, container_definitions=container_definitions, volumes=volumes)
+        else:
+            # no-op when nothing changed between old and new resources
+            return original_resource
 
 class Task(BaseObject):
     def __init__(self, cluster, task_definition, container_instance_arn, overrides={}, started_by=''):
@@ -104,6 +161,51 @@ class Service(BaseObject):
         response_object['serviceName'] = self.name
         response_object['serviceArn'] = self.arn
         return response_object
+
+    @classmethod
+    def create_from_cloudformation_json(cls, resource_name, cloudformation_json, region_name):
+        properties = cloudformation_json['Properties']
+        if isinstance(properties['Cluster'], Cluster):
+            cluster = properties['Cluster'].name
+        else:
+            cluster = properties['Cluster']
+        if isinstance(properties['TaskDefinition'], TaskDefinition):
+            task_definition = properties['TaskDefinition'].family
+        else:
+            task_definition = properties['TaskDefinition']
+        service_name = '{0}Service{1}'.format(cluster, int(random() * 10 ** 6))
+        desired_count = properties['DesiredCount']
+        # TODO: LoadBalancers
+        # TODO: Role
+
+        ecs_backend = ecs_backends[region_name]
+        return ecs_backend.create_service(
+            cluster, service_name, task_definition, desired_count)
+
+    @classmethod
+    def update_from_cloudformation_json(cls, original_resource, new_resource_name, cloudformation_json, region_name):
+        properties = cloudformation_json['Properties']
+        if isinstance(properties['Cluster'], Cluster):
+            cluster_name = properties['Cluster'].name
+        else:
+            cluster_name = properties['Cluster']
+        if isinstance(properties['TaskDefinition'], TaskDefinition):
+            task_definition = properties['TaskDefinition'].family
+        else:
+            task_definition = properties['TaskDefinition']
+        desired_count = properties['DesiredCount']
+
+        ecs_backend = ecs_backends[region_name]
+        service_name = original_resource.name
+        if original_resource.cluster_arn != Cluster(cluster_name).arn:
+            # TODO: LoadBalancers
+            # TODO: Role
+            ecs_backend.delete_service(cluster_name, service_name)
+            new_service_name = '{0}Service{1}'.format(cluster_name, int(random() * 10 ** 6))
+            return ecs_backend.create_service(
+                cluster_name, new_service_name, task_definition, desired_count)
+        else:
+            return ecs_backend.update_service(cluster_name, service_name, task_definition, desired_count)
 
 
 class ContainerInstance(BaseObject):
@@ -361,14 +463,15 @@ class EC2ContainerServiceBackend(BaseBackend):
                 service_arns.append(self.services[key].arn)
         return sorted(service_arns)
 
-    def describe_services(self, cluster_str, service_names):
+    def describe_services(self, cluster_str, service_names_or_arns):
         cluster_name = cluster_str.split('/')[-1]
-        services = []
-        for service_name in service_names:
-            cluster_service_pair = '{0}:{1}'.format(cluster_name, service_name)
-            if cluster_service_pair in self.services:
-                services.append(self.services[cluster_service_pair])
-        return services
+        result = []
+        for existing_service_name, existing_service_obj in sorted(self.services.items()):
+            for requested_name_or_arn in service_names_or_arns:
+                cluster_service_pair = '{0}:{1}'.format(cluster_name, requested_name_or_arn)
+                if cluster_service_pair == existing_service_name or existing_service_obj.arn == requested_name_or_arn:
+                    result.append(existing_service_obj)
+        return result
 
     def update_service(self, cluster_str, service_name, task_definition_str, desired_count):
         cluster_name = cluster_str.split('/')[-1]
