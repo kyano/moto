@@ -1096,12 +1096,14 @@ class RegionsAndZonesBackend(object):
         Region("cn-north-1", "ec2.cn-north-1.amazonaws.com.cn"),
         Region("eu-central-1", "ec2.eu-central-1.amazonaws.com"),
         Region("eu-west-1", "ec2.eu-west-1.amazonaws.com"),
+        Region("eu-west-2", "ec2.eu-west-2.amazonaws.com"),
         Region("sa-east-1", "ec2.sa-east-1.amazonaws.com"),
         Region("us-east-1", "ec2.us-east-1.amazonaws.com"),
         Region("us-east-2", "ec2.us-east-2.amazonaws.com"),
         Region("us-gov-west-1", "ec2.us-gov-west-1.amazonaws.com"),
         Region("us-west-1", "ec2.us-west-1.amazonaws.com"),
         Region("us-west-2", "ec2.us-west-2.amazonaws.com"),
+        Region("ca-central-1", "ec2.ca-central-1.amazonaws.com"),
     ]
 
     zones = dict(
