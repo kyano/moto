@@ -60,6 +60,7 @@ from .exceptions import (
     InvalidVpnGatewayIdError,
     InvalidVpnConnectionIdError,
     InvalidCustomerGatewayIdError,
+    RulesPerSecurityGroupLimitExceededError,
 )
 from .utils import (
     EC2_RESOURCE_TO_PREFIX,
@@ -1093,6 +1094,7 @@ class RegionsAndZonesBackend(object):
         Region("ap-south-1", "ec2.ap-south-1.amazonaws.com"),
         Region("ap-southeast-1", "ec2.ap-southeast-1.amazonaws.com"),
         Region("ap-southeast-2", "ec2.ap-southeast-2.amazonaws.com"),
+        Region("ca-central-1", "ec2.ca-central-1.amazonaws.com.cn"),
         Region("cn-north-1", "ec2.cn-north-1.amazonaws.com.cn"),
         Region("eu-central-1", "ec2.eu-central-1.amazonaws.com"),
         Region("eu-west-1", "ec2.eu-west-1.amazonaws.com"),
@@ -1268,6 +1270,16 @@ class SecurityGroup(TaggedEC2Resource):
     def add_egress_rule(self, rule):
         self.egress_rules.append(rule)
 
+    def get_number_of_ingress_rules(self):
+        return sum(
+            len(rule.ip_ranges) + len(rule.source_groups)
+            for rule in self.ingress_rules)
+
+    def get_number_of_egress_rules(self):
+        return sum(
+            len(rule.ip_ranges) + len(rule.source_groups)
+            for rule in self.egress_rules)
+
 
 class SecurityGroupBackend(object):
 
@@ -1364,6 +1376,10 @@ class SecurityGroupBackend(object):
                 if not is_valid_cidr(cidr):
                     raise InvalidCIDRSubnetError(cidr=cidr)
 
+        self._verify_group_will_respect_rule_count_limit(
+            group, group.get_number_of_ingress_rules(),
+            ip_ranges, source_group_names, source_group_ids)
+
         source_group_names = source_group_names if source_group_names else []
         source_group_ids = source_group_ids if source_group_ids else []
 
@@ -1429,6 +1445,10 @@ class SecurityGroupBackend(object):
                 if not is_valid_cidr(cidr):
                     raise InvalidCIDRSubnetError(cidr=cidr)
 
+        self._verify_group_will_respect_rule_count_limit(
+            group, group.get_number_of_egress_rules(),
+            ip_ranges, source_group_names, source_group_ids)
+
         source_group_names = source_group_names if source_group_names else []
         source_group_ids = source_group_ids if source_group_ids else []
 
@@ -1475,6 +1495,20 @@ class SecurityGroupBackend(object):
             group.egress_rules.remove(security_rule)
             return security_rule
         raise InvalidPermissionNotFoundError()
+
+    def _verify_group_will_respect_rule_count_limit(
+            self, group, current_rule_nb,
+            ip_ranges, source_group_names=None, source_group_ids=None):
+        max_nb_rules = 50 if group.vpc_id else 100
+        future_group_nb_rules = current_rule_nb
+        if ip_ranges:
+            future_group_nb_rules += len(ip_ranges)
+        if source_group_ids:
+            future_group_nb_rules += len(source_group_ids)
+        if source_group_names:
+            future_group_nb_rules += len(source_group_names)
+        if future_group_nb_rules > max_nb_rules:
+            raise RulesPerSecurityGroupLimitExceededError
 
 
 class SecurityGroupIngress(object):
