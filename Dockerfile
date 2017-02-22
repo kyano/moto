@@ -4,7 +4,7 @@ ADD . /moto/
 ENV PYTHONUNBUFFERED 1
 
 WORKDIR /moto/
-RUN pip install .[server]
+RUN pip install ".[server]"
 
 CMD ["./init.sh"]
 
